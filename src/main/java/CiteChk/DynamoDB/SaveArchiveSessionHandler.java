@@ -1,5 +1,10 @@
 package CiteChk.DynamoDB;
 
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
+import java.util.Map;
+
 import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
@@ -13,25 +18,29 @@ import com.amazonaws.services.dynamodbv2.document.spec.GetItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.PutItemSpec;
 import com.amazonaws.services.dynamodbv2.document.spec.QuerySpec;
 import com.amazonaws.services.dynamodbv2.document.utils.ValueMap;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.ConditionalCheckFailedException;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
 import com.amazonaws.services.lambda.runtime.Context;
 import com.amazonaws.services.lambda.runtime.RequestHandler;
+
+import software.amazon.ion.Timestamp;
+
 import com.amazonaws.services.lambda.runtime.Context; 
 import com.amazonaws.services.lambda.runtime.LambdaLogger;
 
 public class SaveArchiveSessionHandler 
-implements RequestHandler<ArchivingRequest, ScanResult> {
+implements RequestHandler<ArchivingRequest, List<AttributeValue>> {
    
   private DynamoDB dynamoDb;
   private String DYNAMODB_TABLE_NAME = "Sessions";
   private Regions REGION = Regions.US_EAST_1;
+  AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().build();
 
-  public ScanResult handleRequest(
+  public List<AttributeValue> handleRequest(
     ArchivingRequest personRequest, Context context) {
 	  LambdaLogger logger = context.getLogger();
-	  AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard().build();
 
       this.initDynamoDbClient();
       logger.log("Request Received");
@@ -40,10 +49,8 @@ implements RequestHandler<ArchivingRequest, ScanResult> {
 //    		    .withKeyConditionExpression("sessionId = :v_id")
 //    		    .withValueMap(new ValueMap()
 //    		        .withString(":v_id", "Amazon DynamoDB#DynamoDB Thread 1"));
-      readData();
-      ScanRequest scanRequest = new ScanRequest()
-    		    .withTableName(DYNAMODB_TABLE_NAME);
-      ScanResult result = client.scan(scanRequest);
+      List<AttributeValue> result = readData();
+      
       persistData(personRequest);
       logger.log("Request completed and persisted");
       ArchivingResponse personResponse = new ArchivingResponse();
@@ -51,10 +58,30 @@ implements RequestHandler<ArchivingRequest, ScanResult> {
       return result;
   }
 
-     private GetItemOutcome readData() {
-		return null;
-	// TODO Auto-generated method stub
-	
+     private List<AttributeValue> readData() {
+    	 ScanRequest scanRequest = new ScanRequest()
+     		    .withTableName(DYNAMODB_TABLE_NAME);
+       ScanResult result = client.scan(scanRequest);
+       List<AttributeValue> list = null;
+//       String createdDate;
+       String ExpirationDate;
+       LocalDateTime expireTime = null;
+       LocalDateTime today = LocalDateTime.now();
+//       DateTimeFormatter todayTime = DateTimeFormatter.ofPattern("yyyy-mm-dd hh:mm:ss")
+       DateTimeFormatter dateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-mm-dd hh:mm:ss");
+       LocalDateTime current = LocalDateTime.parse(today, dateTimeFormatter);
+       AttributeValue results = null;
+       for (Map<String, AttributeValue> item : result.getItems()){
+//    	    createdDate=item.get("createdDate").toString();
+    	    ExpirationDate=item.get("expirationDate").toString();
+//    	    createTime.parse(createdDate, dateTimeFormatter);
+    	    expireTime = LocalDateTime.parse(ExpirationDate, dateTimeFormatter);
+    	    if(expireTime.isEqual(current) || expireTime.isBefore(current)) {
+    	    	list.add(item.get("sessionId"));
+    	    }
+    	}
+    	 
+    	 return list;
      }
 
 //  private GetItemOutcome recoverData(ArchivingRequest sessionRequest) throws ConditionalCheckFailedException {
