@@ -1,0 +1,3 @@
+CiteChk\DynamoDB\ArchivingRequest.class
+CiteChk\DynamoDB\SaveArchiveSessionHandler.class
+CiteChk\DynamoDB\ArchivingResponse.class
